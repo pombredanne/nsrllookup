@@ -1,2 +1,5 @@
 #!/bin/sh
 mingw32-configure LDFLAGS="-static-libstdc++ -static-libgcc" LIBS=-lws2_32 CXXFLAGS="-W -Wextra -pedantic -O2"
+make clean
+make
+#make publish-windows

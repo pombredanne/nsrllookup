@@ -1,5 +1,4 @@
-/* $Id: win32.hpp 105 2012-01-30 08:08:50Z rjh $
- * Copyright (c) 2012, Robert J. Hansen <rjh@secret-alchemy.com>
+/* Copyright (c) 2012-2013, Robert J. Hansen <rjh@sixdemonbag.org>
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -15,19 +14,26 @@
  */
 
 
-#if _WIN32 || __WIN32__ || __WINDOWS__ || _win32
+#if _WIN32 || __WIN32__ || __WINDOWS__ || _win32 || _WIN64 || __WIN64__ || _win64
 #ifndef __WIN32_HPP
 #define __WIN32_HPP
 #define WINDOWS
 
 #undef UNICODE
 
-#include <WinSock2.h>
-#include <WS2tcpip.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #include <windows.h>
 
-#define OPERATING_SYSTEM "Windows"
-#define PACKAGE_VERSION "1.2.2"
+
+#if _WIN64 || __WIN64__ || _win64
+#define OPERATING_SYSTEM "64-bit Windows"
+#else
+#if _WIN32 || __WIN32__ || _win32
+#define OPERATING_SYSTEM "32-bit Windows"
+#endif
+#endif
+
 
 class NetworkSocket
 {
@@ -41,7 +47,6 @@ public:
           connected(false)
     {
         sockaddr_in server;
-        sockaddr_in *sockaddr_ipv4 = 0;
         addrinfo* result, *ptr;
         addrinfo hints;
 

@@ -1,5 +1,4 @@
-/* $Id: common.hpp 105 2012-01-30 08:08:50Z rjh $
- * Copyright (c) 2012, Robert J. Hansen <rjh@secret-alchemy.com>
+/* Copyright (c) 2012-2013, Robert J. Hansen <rjh@sixdemonbag.org>
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -25,6 +24,7 @@
 #include <cstdlib>
 #include <exception>
 #include <memory>
+#include <ciso646>
 
 void bomb(int code);
 int query_server_status();
