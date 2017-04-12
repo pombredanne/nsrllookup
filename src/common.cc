@@ -1,5 +1,4 @@
-/* $Id: common.cc 104 2012-01-30 08:07:11Z rjh $
- * Copyright (c) 2012, Robert J. Hansen <rjh@secret-alchemy.com>
+/* Copyright (c) 2012-16, Robert J. Hansen <rob@hansen.engineering>
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -15,52 +14,46 @@
  */
 
 #include "common.hpp"
-#include <vector>
-#include <string>
 #include <algorithm>
+#include <string>
+#include <vector>
 
 using std::string;
 using std::vector;
 using std::find;
 using std::remove;
 using std::ofstream;
+using std::unique_ptr;
+using std::make_unique;
 
-extern ofstream* HIT_FILE;
-extern ofstream* MISSES_FILE;
-extern NetworkSocket* GLOBAL_SOCK;
-
-vector<string>* tokenize(const string& line, const char delim)
+vector<string> tokenize(const string& line, const char delim)
 {
-    string::const_iterator begin = line.begin();
-    string::const_iterator end = line.begin();
-    vector<string>* rv = new vector<string>();
+    auto begin{ line.begin() };
+    auto end{ line.begin() };
+    vector<string> rv;
 
     while (begin != line.end()) {
         end = find(begin + 1, line.end(), delim);
-        rv->push_back(string(begin, end));
+        rv.emplace_back(string(begin, end));
         begin = end + (end == line.end() ? 0 : 1);
     }
-    for (size_t idx = 0 ; idx < rv->size() ; ++idx) {
-        string& line = rv->at(idx);
-        line.erase(remove(line.begin(), line.end(), '\r'), line.end());
-        line.erase(remove(line.begin(), line.end(), '\n'), line.end());
+    for (size_t idx = 0; idx < rv.size(); ++idx) {
+        rv.at(idx).erase(remove(rv.at(idx).begin(),
+                             rv.at(idx).end(),
+                             '\r'),
+            rv.at(idx).end());
+        rv.at(idx).erase(remove(rv.at(idx).begin(),
+                             rv.at(idx).end(),
+                             '\n'),
+            rv.at(idx).end());
     }
-    rv->erase(remove(rv->begin(), rv->end(), ""), rv->end());
+    rv.erase(remove(rv.begin(), rv.end(), ""), rv.end());
     return rv;
 }
 
 /* This abomination comes to you courtesy of the Win32 API. */
 void bomb(int code)
 {
-    if (GLOBAL_SOCK) {
-        delete GLOBAL_SOCK;
-    }
-    if (HIT_FILE) {
-        delete HIT_FILE;
-    }
-    if (MISSES_FILE) {
-        delete MISSES_FILE;
-    }
 #ifdef WINDOWS
     WSACleanup();
     ExitProcess(code);

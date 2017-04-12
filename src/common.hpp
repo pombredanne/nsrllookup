@@ -1,5 +1,4 @@
-/* $Id: common.hpp 105 2012-01-30 08:08:50Z rjh $
- * Copyright (c) 2012, Robert J. Hansen <rjh@secret-alchemy.com>
+/* Copyright (c) 2012-2016, Robert J. Hansen <rob@hansen.engineering>
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,46 +13,42 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef __COMMON_HPP
-#define __COMMON_HPP
+#ifndef COMMON_HPP
+#define COMMON_HPP
 
-#include <vector>
-#include <string>
-#include <iostream>
-#include <fstream>
 #include <algorithm>
+#include <cstdint>
 #include <cstdlib>
 #include <exception>
+#include <fstream>
+#include <iostream>
 #include <memory>
-
-void bomb(int code);
-int query_server_status();
+#include <string>
+#include <vector>
 
 class NetworkError : public std::exception {
 public:
-    const char* what() const throw() {
-        return "network error";
-    }
+    const char* what() const noexcept { return "network error"; }
 };
 class EOFException : public std::exception {
 public:
-    const char* what() const throw() {
-        return "eof exception";
-    }
+    const char* what() const noexcept { return "eof exception"; }
 };
 class ConnectionRefused : public std::exception {
 public:
-    const char* what() const throw() {
-        return "connection refused";
-    }
+    const char* what() const noexcept { return "connection refused"; }
 };
 
+void bomb(int code);
 void parse_options(int argc, char** argv);
-std::vector<std::string>* tokenize(const std::string& line,
-                                   const char delim = ' ');
+std::vector<std::string> tokenize(const std::string& line,
+    const char delim = ' ');
 void query_server(const std::vector<std::string>& buffer);
 void end_connection();
 
+extern std::string SERVER;
+extern bool SCORE_HITS;
+extern uint16_t PORT;
 
 #ifdef _WIN32
 #include "win32.hpp"
