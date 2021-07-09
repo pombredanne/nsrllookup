@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-16, Robert J. Hansen <rob@hansen.engineering>
+/* Copyright (c) 2012-19, Robert J. Hansen <rob@hansen.engineering>
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,71 +14,63 @@
  */
 
 #include "common.hpp"
-#include <array>
-#include <cctype>
+#include <algorithm>
+#include <iostream>
+#include <iterator>
 #include <regex>
+#include <vector>
+#if WINDOWS | WIN32
+#include "winsock.h"
+#endif
 
-using std::array;
-using std::vector;
-using std::string;
-using std::find;
-using std::fill;
-using std::remove;
-using std::ofstream;
-
+using std::cerr;
 using std::cin;
-using std::unique_ptr;
-using std::regex_search;
-using std::regex;
+using std::copy;
+using std::cout;
+using std::ostream_iterator;
+using std::sort;
+using std::string;
 using std::transform;
+using std::unique;
+using std::vector;
+using std::regex;
 
-string SERVER{ "nsrllookup.com" };
-bool SCORE_HITS{ false };
-uint16_t PORT{ 9120 };
+string SERVER, PORT;
+bool SCORE_HITS { false };
 
 int main(int argc, char* argv[])
 {
-#ifdef WINDOWS
+#if WINDOWS | WIN32
     WSAData wsad;
     if (0 != WSAStartup(MAKEWORD(2, 0), &wsad)) {
         std::cerr << "Error: could not initialize Winsock.\n\n"
                      "You're running a very old version of Windows.  nsrllookup "
-                     "won't work\n"
-                     "on this system.\n";
+                     "won't work\non this system.\n";
         bomb(-1);
     }
 #endif
-
-    vector<string> buffer;
-    regex valid_line{ "^[A-F0-9]{32}",
-        std::regex_constants::icase | std::regex_constants::optimize };
-
+    vector<string> hashes;
+    const regex valid_line{ "^[A-F0-9]{32}",
+		std::regex_constants::icase | std::regex_constants::optimize };
+	
     parse_options(argc, argv);
 
-    try {
-        string line;
-        while (cin) {
-            getline(cin, line);
-            transform(line.begin(), line.end(), line.begin(), ::toupper);
-
-            if (regex_search(line, valid_line)) {
-                buffer.push_back(string(line.begin(), line.begin() + 32));
-                if (buffer.size() >= 4096) {
-                    query_server(buffer);
-                    buffer.clear();
-                }
-            }
+    string line;
+    while (cin) {
+        getline(cin, line);
+        transform(line.begin(), line.end(), line.begin(), ::toupper);
+        if (regex_search(line, valid_line)) {
+            hashes.emplace_back(string(line.begin(), line.begin() + 32));
         }
-    } catch (EOFException&) {
-        // pass: this is entirely expected.  Uh, well, maybe.  It should
-        // actually be removed, I think...
     }
 
-    if (buffer.size()) {
-        query_server(buffer);
-        buffer.clear();
-    }
-    end_connection();
+    sort(hashes.begin(), hashes.end());
+    hashes.erase(unique(hashes.begin(), hashes.end()), hashes.end());
 
+    auto answers = query_server(hashes);
+    copy(answers.cbegin(), answers.cend(), ostream_iterator<string>(cout, "\n"));
+#if WINDOWS | WIN32
+    WSACleanup();
+#endif
     return EXIT_SUCCESS;
 }

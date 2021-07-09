@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-16, Robert J. Hansen <rob@hansen.engineering>
+/* Copyright (c) 2012-19, Robert J. Hansen <rob@hansen.engineering>
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,106 +14,102 @@
  */
 
 #include "common.hpp"
+#include <algorithm>
+#include <boost/asio.hpp>
+#include <exception>
+#include <iostream>
+#include <iterator>
+#include <regex>
+#include <sstream>
 
+using boost::asio::ip::tcp;
+using std::cerr;
+using std::copy;
+using std::getline;
+using std::min;
+using std::ostream_iterator;
+using std::regex;
+using std::regex_search;
+using std::sort;
 using std::string;
+using std::stringstream;
+using std::unique;
 using std::vector;
-using std::unique_ptr;
-using std::ofstream;
 
 namespace {
-NetworkSocket sockobj;
-
-class BadHandshake : public std::exception {
-public:
-    const char* what() const noexcept { return "bad handshake"; }
-};
-
-class BadQuery : public std::exception {
-public:
-    const char* what() const noexcept { return "bad query"; }
-};
-
-class MismatchedResultSet : public std::exception {
-public:
-    const char* what() const noexcept { return "mismatched result set"; }
-};
-
-void write_output(const vector<string>& buffer, const string& result_line)
+void trim(string& line)
 {
-    auto tokens{ tokenize(result_line) };
-    if (tokens.empty())
+    if (line.size() == 0)
         return;
 
-    if (tokens.at(0) != "OK") {
-        throw BadQuery();
+    auto end_ws = line.find_last_not_of("\t\n\v\f\r ");
+    if (end_ws != string::npos) {
+        line.erase(end_ws + 1);
     }
-    const string& results = tokens.at(1);
-
-    if (buffer.size() != results.size())
-        throw MismatchedResultSet();
-
-    for (size_t idx = 0; idx < buffer.size(); ++idx) {
-        bool hit = results.at(idx) == '1' ? true : false;
-
-        if ((hit && SCORE_HITS) || (!hit && !SCORE_HITS)) {
-            std::cout << buffer.at(idx) << "\n";
-        }
+    auto front_ws = line.find_first_not_of("\t\n\v\f\r ");
+    if (front_ws > 0) {
+        line.erase(0, front_ws);
     }
 }
 }
 
-void end_connection()
+vector<string> query_server(const vector<string>& hashes)
 {
-    try {
-        if (sockobj.isConnected()) {
-            sockobj.write("BYE\r\n");
-        }
-    } catch (std::exception&) {
-        // pass: we're closing the connection anyway
-    }
-}
-
-void query_server(const vector<string>& buffer)
-{
-    if (buffer.empty())
-        return;
-
-    if (!sockobj.isConnected()) {
-        try {
-            sockobj.connect(SERVER, PORT);
-            sockobj.write("Version: 2.0\r\n");
-            auto tokens{ tokenize(sockobj.read_line()) };
-            if (tokens.size() == 0 || tokens.at(0) != "OK")
-                throw BadHandshake();
-        } catch (ConnectionRefused&) {
-            std::cerr << "Error: connection refused\n";
-            bomb(-1);
-        } catch (BadHandshake&) {
-            std::cerr << "Error: server handshake failed\n";
-            bomb(-1);
-        }
-    }
+    constexpr size_t MAX_SENT = 512;
+    const auto scorechar = SCORE_HITS ? '1' : '0';
+    size_t hashidx = 0;
+    vector<string> rv;
+    auto resprx = regex("^OK [01]+$");
+    string response;
 
     try {
-        string q{ "query" };
-        for (size_t idx = 0; idx < buffer.size(); ++idx) {
-            auto tokens{ tokenize(buffer.at(idx)) };
-            q += " " + tokens.at(0);
+        tcp::iostream stream(SERVER, PORT);
+        if (!stream) {
+            cerr << "Could not connect to " << SERVER << " " << PORT << ".\n";
+            bomb(-1);
         }
-        q += "\r\n";
-        sockobj.write(q);
-        write_output(buffer, sockobj.read_line());
-    } catch (BadQuery&) {
-        std::cerr << "Error: server didn't like our query.\n";
-        bomb(-1);
-    } catch (NetworkError&) {
-        std::cerr << "Error: network failure.\n";
-        bomb(-1);
-    } catch (MismatchedResultSet&) {
-        std::cerr << "Error: mismatched result set.\n";
-        bomb(-1);
+
+        stream << "Version: 2.0\r\n";
+        getline(stream, response);
+        trim(response);
+        if (response != "OK") {
+            cerr << "Malformed response from server: " << response << "\n";
+            bomb(-1);
+        }
+
+        while (hashidx < hashes.size()) {
+            stringstream buf;
+            auto bufiter = ostream_iterator<string>(buf, " ");
+            auto end = hashidx + min(MAX_SENT, (hashes.size() - hashidx));
+
+            // Form and send the query, remembering to trim whitespace.
+            buf << "query ";
+            copy(hashes.cbegin() + hashidx, hashes.cbegin() + end, bufiter);
+            auto query = buf.str();
+            trim(query);
+            stream << query << "\r\n";
+
+            // Receive and walk down the response.
+            getline(stream, response);
+            trim(response);
+            if (!regex_search(response, resprx)) {
+                cerr << "Error: malformed response from server";
+                bomb(-1);
+            }
+            for (size_t respidx = 3; respidx < response.size(); respidx += 1) {
+                if (response.at(respidx) == scorechar)
+                    rv.emplace_back(hashes.at(hashidx + (respidx - 3)));
+            }
+            hashidx = end;
+        }
+        rv.erase(unique(rv.begin(), rv.end()), rv.end());
+        sort(rv.begin(), rv.end());
+        return rv;
     } catch (std::exception&) {
-        std::cerr << "Error: unknown error (WTF?)\n";
+        cerr << "IO error communicating with " << SERVER << " " << PORT << ".\n";
         bomb(-1);
     }
+    // We can't reach this code: we either bail out in the above return or the
+    // above exception.
+    return vector<string>();
 }

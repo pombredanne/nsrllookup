@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, Robert J. Hansen <rob@hansen.engineering>
+/* Copyright (c) 2012-19, Robert J. Hansen <rob@hansen.engineering>
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -16,44 +16,20 @@
 #ifndef COMMON_HPP
 #define COMMON_HPP
 
-#include <algorithm>
-#include <cstdint>
-#include <cstdlib>
-#include <exception>
-#include <fstream>
-#include <iostream>
-#include <memory>
 #include <string>
 #include <vector>
 
-class NetworkError : public std::exception {
-public:
-    const char* what() const noexcept { return "network error"; }
-};
-class EOFException : public std::exception {
-public:
-    const char* what() const noexcept { return "eof exception"; }
-};
-class ConnectionRefused : public std::exception {
-public:
-    const char* what() const noexcept { return "connection refused"; }
-};
-
 void bomb(int code);
+
 void parse_options(int argc, char** argv);
-std::vector<std::string> tokenize(const std::string& line,
-    const char delim = ' ');
-void query_server(const std::vector<std::string>& buffer);
-void end_connection();
 
-extern std::string SERVER;
+std::vector<std::string> query_server(const std::vector<std::string>&);
+
+extern std::string SERVER, PORT;
 extern bool SCORE_HITS;
-extern uint16_t PORT;
 
-#ifdef _WIN32
-#include "win32.hpp"
-#else
-#include "unix.hpp"
+#ifdef WINDOWS
+
 #endif
 
 #endif
